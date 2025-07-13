@@ -1,0 +1,60 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Typing Sprint</title>
+  <base href="/3dtyping-game/">
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/FontLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/geometries/TextGeometry.js"></script>
+  <style>
+    html, body {margin:0;height:100%;overflow:hidden;background:linear-gradient(#c5f1ff,#4aa4ff);font-family:sans-serif;}
+    #intro{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;text-align:center;z-index:1;}
+    #startBtn{margin-top:1rem;padding:.5rem 1.5rem;font-size:1rem;font-weight:bold;border:none;border-radius:6px;background:rgba(0,0,0,.7);color:#fff;cursor:not-allowed;opacity:.6;transition:opacity .2s;}
+    #startBtn.ready{cursor:pointer;opacity:1;}
+    #overlay{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:1rem;color:#fff;font-weight:bold;text-shadow:0 1px 4px rgba(0,0,0,.5);z-index:1;}
+  </style>
+</head>
+<body>
+  <div id="intro">
+    <h1>3D Typing Sprint</h1>
+    <p>Loading assets…</p>
+    <button id="startBtn" disabled>Loading…</button>
+  </div>
+  <div id="overlay" hidden>
+    <div id="wpm">WPM: 0</div>
+    <div id="chars">0 / 0</div>
+    <div id="timer">0.0s</div>
+  </div>
+  <canvas id="scene"></canvas>
+<script>
+const PHRASE="One woman feels extraordinary joy.";
+const canvas=document.getElementById('scene');
+const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,1000);
+camera.position.set(0,0,30);
+scene.add(new THREE.DirectionalLight(0xffffff,1).position.set(10,10,10));
+const letterMats={inactive:new THREE.MeshBasicMaterial({color:0x0b1e3f}),active:new THREE.MeshBasicMaterial({color:0x00e0ff}),done:new THREE.MeshBasicMaterial({color:0x0aff5c})};
+const letterMeshes=[];
+let ready=false,cursor=0,started=false,startTime=0,interval;
+const intro=document.getElementById('intro');
+const startBtn=document.getElementById('startBtn');
+const overlay=document.getElementById('overlay');
+const wpmEl=document.getElementById('wpm'),charsEl=document.getElementById('chars'),timerEl=document.getElementById('timer');
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+function updateOverlay(){const elapsed=(performance.now()-startTime)/1000;const wpm=elapsed?Math.round((cursor/5)/(elapsed/60)):0;wpmEl.textContent=`WPM: ${wpm}`;charsEl.textContent=`${cursor} / ${PHRASE.length}`;timerEl.textContent=`${elapsed.toFixed(1)}s`;}
+function startGame(){if(!ready)return;started=true;cursor=0;startTime=performance.now();letterMeshes.forEach(m=>m.material.color.set(letterMats.inactive.color));intro.hidden=true;overlay.hidden=false;clearInterval(interval);interval=setInterval(updateOverlay,100);}
+startBtn.addEventListener('click',startGame);
+function finishGame(){started=false;clearInterval(interval);updateOverlay();}
+addEventListener('keydown',e=>{if(!started)return;const expected=PHRASE[cursor];if(e.key===expected){letterMeshes[cursor].material.color.set(letterMats.done.color);cursor++;if(cursor===PHRASE.length)finishGame();}else{letterMeshes[cursor].material.color.set(0xff0033);setTimeout(()=>{if(cursor<letterMeshes.length)letterMeshes[cursor].material.color.set(letterMats.active.color);},150);}});
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);const t=clock.getElapsedTime();letterMeshes.forEach((m,i)=>{m.position.y=Math.sin(t+i*.3)*.5;m.rotation.y+=.01;});if(started&&cursor<letterMeshes.length)letterMeshes[cursor].material.color.set(letterMats.active.color);renderer.render(scene,camera);}animate();
+const loader=new THREE.FontLoader();
+loader.load('helvetiker_regular.typeface.json',font=>{const opts={font,size:1.5,height:.3,curveSegments:6};let offsetX=0;for(const chRaw of PHRASE){const ch=chRaw===' '?'\u00A0':chRaw;const geo=new THREE.TextGeometry(ch,opts);geo.computeBoundingBox();const mesh=new THREE.Mesh(geo,letterMats.inactive.clone());const w=geo.boundingBox.max.x-geo.boundingBox.min.x;mesh.position.set(offsetX+w/2,0,0);scene.add(mesh);letterMeshes.push(mesh);offsetX+=w+1.1;}const group=new THREE.Group();letterMeshes.forEach(m=>group.add(m));group.position.x=-offsetX/2;scene.add(group);ready=true;startBtn.textContent='Start';startBtn.disabled=false;startBtn.classList.add('ready');intro.querySelector('p').textContent='Click Start and begin typing!';});
+</script>
+</body>
+</html>
